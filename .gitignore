@@ -17,7 +17,6 @@ LittleProxy.pro
 *.jks
 performance/site/
 
-*.iml
 .gradle
 /local.properties
 /.idea
