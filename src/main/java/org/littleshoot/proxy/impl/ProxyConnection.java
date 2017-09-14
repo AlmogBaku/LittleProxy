@@ -401,8 +401,9 @@ public abstract class ProxyConnection<I extends HttpObject> extends
             final SSLEngine sslEngine) {
 
         return new ConnectionFlowStep(this, HANDSHAKING) {
+            //Change(expose to protected): @AlmogBaku
             @Override
-            boolean shouldExecuteOnEventLoop() {
+            protected boolean shouldExecuteOnEventLoop() {
                 return false;
             }
 
@@ -837,5 +838,4 @@ public abstract class ProxyConnection<I extends HttpObject> extends
 
         protected abstract void responseWritten(HttpResponse httpResponse);
     }
-
 }

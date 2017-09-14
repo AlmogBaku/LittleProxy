@@ -1,5 +1,6 @@
 package org.littleshoot.proxy;
 
+import org.littleshoot.proxy.impl.ConnectionFlowManager;
 import org.littleshoot.proxy.impl.ThreadPoolConfiguration;
 
 import java.net.InetSocketAddress;
@@ -159,6 +160,21 @@ public interface HttpProxyServerBootstrap {
      */
     HttpProxyServerBootstrap withChainProxyManager(
             ChainedProxyManager chainProxyManager);
+    /**
+     * <p>
+     * Specify a {@link ConnectionFlowManager} to use for adding custom connection-flow
+     * steps.
+     * </p>
+     *
+     * <p>
+     * Default = null
+     * </p>
+     *
+     * @param connectionFlowManager
+     * @return
+     */
+    HttpProxyServerBootstrap withConnectionFlowManager(
+        ConnectionFlowManager connectionFlowManager);
 
     /**
      * <p>

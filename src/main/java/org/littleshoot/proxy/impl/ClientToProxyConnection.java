@@ -333,7 +333,10 @@ public class ClientToProxyConnection extends ProxyConnection<HttpRequest> {
             numberOfReusedServerConnections.incrementAndGet();
         }
 
-        modifyRequestHeadersToReflectProxying(httpRequest);
+        //Change(disable when have flow manager): @AlmogBaku)
+        if(proxyServer.getConnectionFlowManager() == null) {
+            modifyRequestHeadersToReflectProxying(httpRequest);
+        }
 
         HttpResponse proxyToServerFilterResponse = currentFilters.proxyToServerRequest(httpRequest);
         if (proxyToServerFilterResponse != null) {

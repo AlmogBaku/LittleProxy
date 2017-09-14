@@ -182,26 +182,28 @@ public class ConnectionFlow {
     public void fail(final Throwable cause) {
         final ConnectionState lastStateBeforeFailure = serverConnection
                 .getCurrentState();
-        serverConnection.disconnect().addListener(
-                new GenericFutureListener() {
-                    @Override
-                    public void operationComplete(Future future)
-                            throws Exception {
-                        synchronized (connectLock) {
-                            if (!clientConnection.serverConnectionFailed(
-                                    serverConnection,
-                                    lastStateBeforeFailure,
-                                    cause)) {
-                                // the connection to the server failed and we are not retrying, so transition to the
-                                // DISCONNECTED state
-                                serverConnection.become(ConnectionState.DISCONNECTED);
 
-                                // We are not retrying our connection, let anyone waiting for a connection know that we're done
-                                notifyThreadsWaitingForConnection();
-                            }
+        //Change(can fail before eventloop): @AlmogBaku
+        if(currentStep.shouldExecuteOnEventLoop()) {
+            serverConnection.disconnect().addListener(new GenericFutureListener() {
+                @Override public void operationComplete(Future future) throws Exception {
+                    synchronized (connectLock) {
+                        if (!clientConnection.serverConnectionFailed(serverConnection,
+                            lastStateBeforeFailure, cause)) {
+                            // the connection to the server failed and we are not retrying, so transition to the
+                            // DISCONNECTED state
+                            serverConnection.become(ConnectionState.DISCONNECTED);
+
+                            // We are not retrying our connection, let anyone waiting for a connection know that we're done
+                            notifyThreadsWaitingForConnection();
                         }
                     }
-                });
+                }
+            });
+        } else {
+            serverConnection.become(ConnectionState.DISCONNECTED);
+            notifyThreadsWaitingForConnection();
+        }
     }
 
     /**

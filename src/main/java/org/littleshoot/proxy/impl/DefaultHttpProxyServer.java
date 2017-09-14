@@ -106,6 +106,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
     private final boolean authenticateSslClients;
     private final ProxyAuthenticator proxyAuthenticator;
     private final ChainedProxyManager chainProxyManager;
+    private final ConnectionFlowManager connectionFlowManager; //Change: @AlmogBaku
     private final MitmManager mitmManager;
     private final HttpFiltersSource filtersSource;
     private final boolean transparent;
@@ -202,6 +203,9 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
      * @param chainProxyManager
      *            The proxy to send requests to if chaining proxies. Typically
      *            <code>null</code>.
+     * @param connectionFlowManager
+     *            Allow hooking into the ConnectionFlow. Typically <code>null</code>
+     *            Add by: @AlmogBaku
      * @param mitmManager
      *            The {@link MitmManager} to use for man in the middle'ing
      *            CONNECT requests
@@ -238,6 +242,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             boolean authenticateSslClients,
             ProxyAuthenticator proxyAuthenticator,
             ChainedProxyManager chainProxyManager,
+            ConnectionFlowManager connectionFlowManager,
             MitmManager mitmManager,
             HttpFiltersSource filtersSource,
             boolean transparent,
@@ -260,6 +265,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         this.authenticateSslClients = authenticateSslClients;
         this.proxyAuthenticator = proxyAuthenticator;
         this.chainProxyManager = chainProxyManager;
+        this.connectionFlowManager = connectionFlowManager;//Change: @AlmogBaku
         this.mitmManager = mitmManager;
         this.filtersSource = filtersSource;
         this.transparent = transparent;
@@ -394,6 +400,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                     authenticateSslClients,
                     proxyAuthenticator,
                     chainProxyManager,
+                    connectionFlowManager,//Change: @AlmogBaku
                     mitmManager,
                     filtersSource,
                     transparent,
@@ -565,6 +572,11 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         return chainProxyManager;
     }
 
+    //Change: @AlmogBaku
+    protected ConnectionFlowManager getConnectionFlowManager() {
+        return connectionFlowManager;
+    }
+
     protected MitmManager getMitmManager() {
         return mitmManager;
     }
@@ -615,7 +627,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         private HostResolver serverResolver = new DefaultHostResolver();
         private long readThrottleBytesPerSecond;
         private long writeThrottleBytesPerSecond;
-        private InetSocketAddress localAddress;
+        private InetSocketAddress localAddress;//Change: @AlmogBaku
         private String proxyAlias;
         private int clientToProxyAcceptorThreads = ServerGroup.DEFAULT_INCOMING_ACCEPTOR_THREADS;
         private int clientToProxyWorkerThreads = ServerGroup.DEFAULT_INCOMING_WORKER_THREADS;
@@ -624,6 +636,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         private int maxHeaderSize = MAX_HEADER_SIZE_DEFAULT;
         private int maxChunkSize = MAX_CHUNK_SIZE_DEFAULT;
         private boolean allowRequestToOriginServer = false;
+        private ConnectionFlowManager connectionFlowManager = null;//Change: @AlmogBaku
 
         private DefaultHttpProxyServerBootstrap() {
         }
@@ -636,6 +649,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
                 boolean authenticateSslClients,
                 ProxyAuthenticator proxyAuthenticator,
                 ChainedProxyManager chainProxyManager,
+                ConnectionFlowManager connectionFlowManager,//Change: @AlmogBaku
                 MitmManager mitmManager,
                 HttpFiltersSource filtersSource,
                 boolean transparent, int idleConnectionTimeout,
@@ -657,6 +671,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             this.authenticateSslClients = authenticateSslClients;
             this.proxyAuthenticator = proxyAuthenticator;
             this.chainProxyManager = chainProxyManager;
+            this.connectionFlowManager = connectionFlowManager;//Change: @AlmogBaku
             this.mitmManager = mitmManager;
             this.filtersSource = filtersSource;
             this.transparent = transparent;
@@ -775,6 +790,14 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
         public HttpProxyServerBootstrap withChainProxyManager(
                 ChainedProxyManager chainProxyManager) {
             this.chainProxyManager = chainProxyManager;
+            return this;
+        }
+
+        //Change: @AlmogBaku
+        @Override
+        public HttpProxyServerBootstrap withConnectionFlowManager(
+                ConnectionFlowManager connectionFlowManager) {
+            this.connectionFlowManager = connectionFlowManager;
             return this;
         }
 
@@ -899,7 +922,7 @@ public class DefaultHttpProxyServer implements HttpProxyServer {
             return new DefaultHttpProxyServer(serverGroup,
                     transportProtocol, determineListenAddress(),
                     sslEngineSource, authenticateSslClients,
-                    proxyAuthenticator, chainProxyManager, mitmManager,
+                    proxyAuthenticator, chainProxyManager, connectionFlowManager, mitmManager,//Change: @AlmogBaku
                     filtersSource, transparent,
                     idleConnectionTimeout, activityTrackers, connectTimeout,
                     serverResolver, readThrottleBytesPerSecond, writeThrottleBytesPerSecond,

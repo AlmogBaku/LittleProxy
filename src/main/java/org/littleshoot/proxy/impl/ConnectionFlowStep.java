@@ -29,7 +29,8 @@ public abstract class ConnectionFlowStep {
         this.LOG = connection.getLOG();
     }
 
-    ProxyConnection getConnection() {
+    //Change(expose to protected): @AlmogBaku
+    protected ProxyConnection getConnection() {
         return connection;
     }
 
@@ -48,6 +49,7 @@ public abstract class ConnectionFlowStep {
     }
 
     /**
+     * //Change(expose to protected): @AlmogBaku
      * <p>
      * Indicates whether or not this step should be executed on the channel's
      * event loop. Defaults to true, can be overridden.
@@ -61,7 +63,7 @@ public abstract class ConnectionFlowStep {
      * 
      * @return
      */
-    boolean shouldExecuteOnEventLoop() {
+    protected boolean shouldExecuteOnEventLoop() {
         return true;
     }
 

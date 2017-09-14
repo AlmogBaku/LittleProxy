@@ -82,7 +82,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     private volatile InetSocketAddress remoteAddress;
     private volatile InetSocketAddress localAddress;
     private final String serverHostAndPort;
-    private volatile ChainedProxy chainedProxy;
+    protected volatile ChainedProxy chainedProxy; //Change(expose to protected): @AlmogBaku
     private final Queue<ChainedProxy> availableChainedProxies;
 
     /**
@@ -416,7 +416,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     protected void disconnected() {
         super.disconnected();
         if (this.chainedProxy != null) {
-            // Let the ChainedProxy know that we disconnected
+            // Let the RimotoChainedProxy know that we disconnected
             try {
                 this.chainedProxy.disconnected();
             } catch (Exception e) {
@@ -540,14 +540,29 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
      * handling CONNECTs.
      */
     private void initializeConnectionFlow() {
-        this.connectionFlow = new ConnectionFlow(clientConnection, this,
-                connectLock)
-                .then(ConnectChannel);
+        //Change(start): @AlmogBaku
+        this.connectionFlow = new ConnectionFlow(clientConnection, this, connectLock);
 
-        //Change: @AlmogBaku
-        if (chainedProxy != null && chainedProxy.requiresCustomConnectionFlow()) {
-            connectionFlow.then(chainedProxy.customConnectionFlow(this));
+        if(proxyServer.getConnectionFlowManager() != null) {
+            ConnectionFlowStep[] steps = proxyServer.getConnectionFlowManager().beforeSteps(this);
+            if (steps != null) {
+                for (ConnectionFlowStep s : steps) {
+                    connectionFlow.then(s);
+                }
+            }
         }
+
+        connectionFlow.then(ConnectChannel);
+
+        if(proxyServer.getConnectionFlowManager() != null) {
+            ConnectionFlowStep[] steps = proxyServer.getConnectionFlowManager().afterSteps(this);
+            if (steps != null) {
+                for (ConnectionFlowStep s : steps) {
+                    connectionFlow.then(s);
+                }
+            }
+        }
+        //Change(end): @AlmogBaku
 
         if (chainedProxy != null && chainedProxy.requiresEncryption()) {
             connectionFlow.then(serverConnection.EncryptChannel(chainedProxy
@@ -555,11 +570,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         }
 
         if (ProxyUtils.isCONNECT(initialRequest)) {
-            // If we're chaining, forward the CONNECT request
-            if (hasUpstreamChainedProxy()) {
-                connectionFlow.then(
-                        serverConnection.HTTPCONNECTWithChainedProxy);
-            }        	
+            connectionFlow.then(serverConnection.HTTPCONNECTWithChainedProxy);
         	
             MitmManager mitmManager = proxyServer.getMitmManager();
             boolean isMitmEnabled = mitmManager != null;
@@ -596,8 +607,9 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
      */
     private ConnectionFlowStep ConnectChannel = new ConnectionFlowStep(this,
             CONNECTING) {
+        //Change(expose to protected): @AlmogBaku
         @Override
-        boolean shouldExecuteOnEventLoop() {
+        protected boolean shouldExecuteOnEventLoop() {
             return false;
         }
 
@@ -646,6 +658,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     private ConnectionFlowStep HTTPCONNECTWithChainedProxy = new ConnectionFlowStep(
             this, AWAITING_CONNECT_OK) {
         protected Future<?> execute() {
+            //Change(skip when not upstream): @Almogbaku
+            if (!hasUpstreamChainedProxy()) {
+                return channel.newSucceededFuture();
+            }
             LOG.debug("Handling CONNECT request through Chained Proxy");
             chainedProxy.filterRequest(initialRequest);
             MitmManager mitmManager = proxyServer.getMitmManager();
@@ -678,13 +694,20 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
         //Change(expose to protected): @AlmogBaku
         protected void onSuccess(ConnectionFlow flow) {
+            //Change(skip when not upstream): @Almogbaku
+            if (!hasUpstreamChainedProxy()) {
+                super.onSuccess(flow);
+                return;
+            }
+
             // Do nothing, since we want to wait for the CONNECT response to
             // come back
         }
 
         protected void read(ConnectionFlow flow, Object msg) {
-            //@AlmogBaku: Ignore previous reads
-            if (msg == LastHttpContent.EMPTY_LAST_CONTENT) {
+            //Change(skip when not upstream): @Almogbaku
+            if (!hasUpstreamChainedProxy()) {
+                super.read(flow, msg);
                 return;
             }
 
@@ -718,8 +741,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
      */
     private ConnectionFlowStep MitmEncryptClientChannel = new ConnectionFlowStep(
             this, HANDSHAKING) {
+
+        //Change(expose to protected): @AlmogBaku
         @Override
-        boolean shouldExecuteOnEventLoop() {
+        protected boolean shouldExecuteOnEventLoop() {
             return false;
         }
 
@@ -781,7 +806,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
 
         if (chainedProxy != null) {
             LOG.info("Connection to upstream server via chained proxy failed", cause);
-            // Let the ChainedProxy know that we were unable to connect
+            // Let the RimotoChainedProxy know that we were unable to connect
             chainedProxy.connectionFailed(cause);
         } else {
             LOG.info("Connection to upstream server failed", cause);
@@ -818,12 +843,13 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     }
 
     /**
+     * //Change(expose to public): @AlmogBaku
      * Set up our connection parameters based on server address and chained
      * proxies.
      * 
      * @throws UnknownHostException when unable to resolve the hostname to an IP address
      */
-    private void setupConnectionParameters() throws UnknownHostException {
+    public void setupConnectionParameters() throws UnknownHostException {
         if (chainedProxy != null
                 && chainedProxy != ChainedProxyAdapter.FALLBACK_TO_DIRECT_CONNECTION) {
             this.transportProtocol = chainedProxy.getTransportProtocol();
@@ -925,7 +951,7 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
     void connectionSucceeded(boolean shouldForwardInitialRequest) {
         become(AWAITING_INITIAL);
         if (this.chainedProxy != null) {
-            // Notify the ChainedProxy that we successfully connected
+            // Notify the RimotoChainedProxy that we successfully connected
             try {
                 this.chainedProxy.connectionSucceeded();
             } catch (Exception e) {
@@ -1046,4 +1072,27 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         }
     };
 
+    /**
+     * //Change: @AlmogBaku
+     * @return Connection's Channel
+     */
+    public Channel getChannel() {
+        return channel;
+    }
+
+    /**
+     * //Change: AlmogBaku
+     * @param proxy Proxy server to chain to
+     */
+    public void setChainedProxy(ChainedProxy proxy) {
+        this.chainedProxy = proxy;
+    }
+
+    /**
+     * //Change: AlmogBaku
+     * @return DefaultHttpProxyServer
+     */
+    public DefaultHttpProxyServer getProxyServer() {
+        return proxyServer;
+    }
 }
