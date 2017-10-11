@@ -196,7 +196,10 @@ public class ProxyToServerConnection extends ProxyConnection<HttpResponse> {
         // Report connection status to HttpFilters
         currentFilters.proxyToServerConnectionQueued();
 
-        setupConnectionParameters();
+        //Change(disable when have flow manager): @AlmogBaku)
+        if(proxyServer.getConnectionFlowManager() == null) {
+            setupConnectionParameters();
+        }
     }
 
     /***************************************************************************
